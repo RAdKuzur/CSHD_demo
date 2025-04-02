@@ -231,7 +231,7 @@ class OrderMainService {
         // Увеличиваем последнее значение нижней границы на 1
         $lastPos = count($itemSplit) - 1;
         $itemSplit[$lastPos] = (int)$itemSplit[$lastPos] + 1;
-        return $itemSplit ;
+        return $itemSplit;
     }
 
     public function createOrderNumberVarRufat($array_number, $downItem, $equalItem , $upItem, $isPostfix, $index, $formNumber, $model_date)
@@ -287,9 +287,75 @@ class OrderMainService {
         while(OrderNumberHelper::findByNumberPostfix($array_number, $posibleItem)) {
             $posibleItem .= '/1';
         }
+        
         $itemSplit = OrderNumberHelper::splitString( $posibleItem);
-
         return $this->postfixDetect($itemSplit);
     }
+
+    public function createOrderNumberVarTimur($array_number, $downItem, $equalItem, $upItem, $isPostfix, $index, $formNumber, $model_date) {
+        // Инициализация переменных
+        //$downItem = null;
+        //$equalItem = [];
+        //$upItem = null;
+    
+        // Сортируем по датам
+        foreach ($array_number as $item) {
+            if ($item[0] < $model_date) {
+                $downItem = $item;
+            } elseif ($item[0] == $model_date) {
+                $equalItem[] = $item;
+            } elseif ($upItem === null) {
+                $upItem = $item;
+                break;
+            }
+        }
+    
+        // Заказы с одинаковой датой
+        if (!empty($equalItem)) {
+            OrderNumberHelper::sortArrayByOrderNumber($equalItem);
+            $downItem = end($equalItem);
+        }
+    
+        // Определяем базовый номер
+        $newNumber = $downItem !== null ? $downItem[2] : $formNumber;
+    
+        // Генерация номера
+        if ($downItem !== null && OrderNumberHelper::findByNumberPostfix($array_number, $newNumber)) {
+            
+            do {
+                $generated = false; // флаг выхода
+                $parts = OrderNumberHelper::splitString($newNumber);
+                $lastIndex = count($parts) - 1;
+                
+                // Случай 1: Увеличиваем последнюю часть
+                $newLast = (int)$parts[$lastIndex] + 1;
+                $candidate1 = implode('/', array_slice($parts, 0, $lastIndex)) . '/' . $newLast;
+                
+                // Случай 2: Нужно увеличить вложенность
+                $candidate2 = $newNumber . '/1';
+    
+                // Проверяем варианты
+                if (($upItem === null || $candidate1 < $upItem[2]) && 
+                    !OrderNumberHelper::findByNumberPostfix($array_number, $candidate1)) {
+                    $newNumber = $candidate1;
+                    $generated = true;
+                } else {
+                    $newNumber = $candidate2;
+                }
+    
+                
+    
+            } while (!$generated && OrderNumberHelper::findByNumberPostfix($array_number, $newNumber));
+        }
+    
+        // Разделяем номер на части
+        $parts = OrderNumberHelper::splitString($newNumber);
+        return [
+            //'full_number' => $newNumber, для дебага
+            'order_number' => $parts[0] ?? $formNumber,
+            'order_copy_id' => $parts[1] ?? null,
+            'order_postfix' => count($parts) > 2 ? implode('/', array_slice($parts, 2)) : null
+        ];
+        }
 }
 
