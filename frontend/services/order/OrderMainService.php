@@ -215,4 +215,81 @@ class OrderMainService {
         }
         return ['number' => $order_number, 'postfix' => $order_postfix];
     }
+
+    private function postfixDetect($itemSplit) {
+        $order_number = $itemSplit[0];
+        $order_copy_id = $itemSplit[1];
+        if (count($itemSplit) > 2) {
+            $order_postfix = implode('/', array_slice($itemSplit, 2));
+        } else {
+            $order_postfix = NULL;
+        }
+        return ['number'=> $order_number,'order_copy_id' => $order_copy_id, 'postfix'=> $order_postfix];
+    }
+    
+    private function incrementLastIndex($itemSplit) {
+        // Увеличиваем последнее значение нижней границы на 1
+        $lastPos = count($itemSplit) - 1;
+        $itemSplit[$lastPos] = (int)$itemSplit[$lastPos] + 1;
+        return $itemSplit ;
+    }
+
+    public function createOrderNumberVarRufat($array_number, $downItem, $equalItem , $upItem, $isPostfix, $index, $formNumber, $model_date)
+    {
+        // определяем с границы
+        foreach ($array_number as $item) {
+            if ($item[0] < $model_date) {
+                $downItem = $item;
+            }elseif ($item[0] == $model_date) {
+                $equalItem[] = $item;
+            }else {
+                $upItem = $item;
+                break;
+            }
+        }
+        // переопределяет нижнюю границу если есть записи в ту же дату
+        if($equalItem != NULL) {
+            OrderNumberHelper::sortArrayByOrderNumber($equalItem);
+            $downItem = $equalItem[count($equalItem) - 1];
+        }
+
+        // если нет нижней границы
+        if (!$downItem) {
+            return [
+                'full_number' => $formNumber,
+                'number'      => $formNumber,
+                'order_copy_id' => null,
+                'postfix'     => null
+            ];
+        }
+
+        $downItemSplit = OrderNumberHelper::splitString($downItem[2]);
+        // если нет верхней границы то увеличь индекс у downItem на 1 
+        if ($upItem === null) {
+            $itemSplit = $this->incrementLastIndex($downItemSplit);
+            return $this->postfixDetect($itemSplit);
+        }
+
+        $upItemSplit = OrderNumberHelper::splitString($upItem[2]);
+        // Сравниваем глубину индексации
+        if (count($downItemSplit) !== count($upItemSplit)) {
+            // увеличивам последний индекс на 1
+            $itemSplit = $this->incrementLastIndex($downItemSplit);
+            $posibleItem = implode('/', $itemSplit);
+            if (!OrderNumberHelper::findByNumberPostfix($array_number, $posibleItem)) {
+                return self::postfixDetect($itemSplit);
+            }
+
+        } 
+
+        // увеличение глубины до тех пор пока не будет найден свободный вариант
+        $posibleItem = $downItem[2] . '/1';
+        while(OrderNumberHelper::findByNumberPostfix($array_number, $posibleItem)) {
+            $posibleItem .= '/1';
+        }
+        $itemSplit = OrderNumberHelper::splitString( $posibleItem);
+
+        return $this->postfixDetect($itemSplit);
+    }
 }
+
