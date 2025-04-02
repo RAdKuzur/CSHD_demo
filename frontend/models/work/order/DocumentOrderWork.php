@@ -147,4 +147,10 @@ class DocumentOrderWork extends DocumentOrder
         $this->executor_id = $this->executor->people_id;
         $this->signed_id = $this->signed->people_id;
     }
+
+    public function setNumber($number, $orderCopyId, $postfix) {
+        $this->order_number = $number;
+        $this->order_copy_id = $orderCopyId;
+        $this->postfix = $postfix;
+    }
 }
